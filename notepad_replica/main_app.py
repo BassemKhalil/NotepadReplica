@@ -1,7 +1,7 @@
 """
-Notepad++ Replica - Main Application
+FeatherPad - Main Application
 
-A portable text editor with Notepad++ session recovery capabilities.
+A lightweight text editor with Notepad++ session recovery capabilities.
 """
 
 import tkinter as tk
@@ -327,13 +327,13 @@ class GoToLineDialog(simpledialog.Dialog):
             self.result = None
 
 
-class NotepadReplica(tk.Tk):
+class FeatherPad(tk.Tk):
     """Main application window"""
 
     def __init__(self):
         super().__init__()
 
-        self.title("Notepad++ Replica")
+        self.title("FeatherPad")
         self.geometry("1200x800")
 
         # Application state
@@ -571,7 +571,7 @@ class NotepadReplica(tk.Tk):
         # Update window title and encoding
         tab = self.tabs.get(tab_id)
         if tab:
-            self.title(f"{tab.filename} - Notepad++ Replica")
+            self.title(f"{tab.filename} - FeatherPad")
             self.encoding_var.set(tab.encoding.lower())
             tab.editor.focus()
 
@@ -1171,7 +1171,7 @@ class NotepadReplica(tk.Tk):
         """Show about dialog"""
         messagebox.showinfo(
             "About",
-            "Notepad++ Replica v1.0.0\n\n"
+            "FeatherPad v1.0.0\n\n"
             "A portable text editor with Notepad++ session recovery.\n\n"
             "Features:\n"
             "- Recover open tabs from Notepad++\n"
@@ -1364,7 +1364,7 @@ Navigation:
 
 def main():
     """Main entry point"""
-    app = NotepadReplica()
+    app = FeatherPad()
     app.mainloop()
 
 

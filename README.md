@@ -1,15 +1,17 @@
-# Notepad++ Replica
+# FeatherPad
 
-A portable text editor with **Notepad++ session recovery** - designed to help you recover and continue working with your open Notepad++ tabs after it's been removed.
+A lightweight text editor with **Notepad++ session recovery** - designed to help you recover and continue working with your open Notepad++ tabs after it's been removed.
 
 ## Features
 
-- **Session Recovery**: Automatically recovers all your open Notepad++ tabs
+- **Session Persistence**: Automatically saves and restores all your open tabs (like Notepad++)
+- **Session Recovery**: Recovers all your open Notepad++ tabs
 - **Backup Recovery**: Retrieves unsaved content from Notepad++ backup files
+- **Custom Tab Bar**: Notepad++-style tab bar with navigation arrows and close buttons
 - **Tabbed Interface**: Familiar multi-tab editing experience
 - **Portable**: Single executable, no installation required
 - **Full Text Editing**:
-  - Find and Replace (with regex support)
+  - Find and Replace (with regex support, search all tabs)
   - Line numbers
   - Word wrap toggle
   - Go to line
@@ -43,7 +45,7 @@ chmod +x build.sh
 ./build.sh
 ```
 
-This creates `dist/NotepadReplica.exe` - a single portable file you can copy anywhere.
+This creates `dist/FeatherPad.exe` - a single portable file you can copy anywhere.
 
 ## Recovering Your Notepad++ Tabs
 

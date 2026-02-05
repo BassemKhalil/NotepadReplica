@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Notepad++ Replica - Entry Point
+FeatherPad - Entry Point
 
-A portable text editor with Notepad++ session recovery.
+A lightweight text editor with Notepad++ session recovery.
 Run this script directly or build it as a portable executable.
 
 Usage:
@@ -17,12 +17,12 @@ import os
 # Add the parent directory to the path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from notepad_replica.main_app import NotepadReplica
+from notepad_replica.main_app import FeatherPad
 
 
 def main():
     """Main entry point"""
-    app = NotepadReplica()
+    app = FeatherPad()
 
     # Parse command line arguments
     args = sys.argv[1:]

@@ -1,5 +1,5 @@
 """
-Session Manager for NotepadReplica
+Session Manager for FeatherPad
 
 Handles saving and restoring application sessions, including:
 - Open tabs and their content
@@ -49,7 +49,7 @@ def get_app_data_dir() -> Path:
     else:  # Linux/Mac
         base = os.environ.get('XDG_DATA_HOME', os.path.expanduser('~/.local/share'))
 
-    app_dir = Path(base) / 'NotepadReplica'
+    app_dir = Path(base) / 'FeatherPad'
     app_dir.mkdir(parents=True, exist_ok=True)
     return app_dir
 

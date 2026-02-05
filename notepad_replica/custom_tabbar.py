@@ -1,5 +1,5 @@
 """
-Custom Tab Bar for NotepadReplica
+Custom Tab Bar for FeatherPad
 
 A Notepad++-style tab bar with:
 - Navigation arrows (first, previous, next, last)
@@ -9,7 +9,7 @@ A Notepad++-style tab bar with:
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, font
 from typing import Callable, Optional, Dict, List
 
 
@@ -76,6 +76,12 @@ class CustomTabBar(ttk.Frame):
         self.tabs_frame = ttk.Frame(self.canvas)
         self.canvas_window = self.canvas.create_window((0, 0), window=self.tabs_frame,
                                                         anchor='nw')
+
+        # Add a permanent spacer at the end for double-click new tab
+        self.spacer_frame = tk.Frame(self.tabs_frame, width=100, height=24, bg='#e0e0e0')
+        self.spacer_frame.pack(side=tk.LEFT, fill=tk.Y)
+        self.spacer_frame.pack_propagate(False)  # Maintain minimum width
+        self.spacer_frame.bind('<Double-Button-1>', lambda e: self.on_new_tab())
 
         # Bind canvas events
         self.canvas.bind('<Configure>', self._on_canvas_configure)
@@ -185,9 +191,9 @@ class CustomTabBar(ttk.Frame):
 
     def add_tab(self, tab_id: str, text: str, modified: bool = False) -> str:
         """Add a new tab"""
-        # Create tab frame
+        # Create tab frame - insert before spacer
         tab_frame = ttk.Frame(self.tabs_frame, relief='raised', borderwidth=1)
-        tab_frame.pack(side=tk.LEFT, padx=1, pady=2)
+        tab_frame.pack(side=tk.LEFT, padx=1, pady=2, before=self.spacer_frame)
 
         # Icon label (file icon simulation)
         icon_label = ttk.Label(tab_frame, text="\U0001F4C4", width=2)  # Document emoji
@@ -198,10 +204,24 @@ class CustomTabBar(ttk.Frame):
         text_label = ttk.Label(tab_frame, text=display_text, padding=(3, 2))
         text_label.pack(side=tk.LEFT)
 
-        # Close button
-        close_btn = ttk.Button(tab_frame, text="x", width=2,
-                               command=lambda: self.on_tab_close(tab_id))
+        # Small red close button using tk.Label
+        close_font = font.Font(size=8, weight='bold')
+        close_btn = tk.Label(
+            tab_frame,
+            text="x",
+            font=close_font,
+            fg='#cc0000',  # Red color
+            bg='#d9d9d9',
+            cursor='hand2',
+            padx=2,
+            pady=0
+        )
         close_btn.pack(side=tk.LEFT, padx=(2, 3))
+
+        # Bind close button events
+        close_btn.bind('<Button-1>', lambda e, tid=tab_id: self.on_tab_close(tid))
+        close_btn.bind('<Enter>', lambda e: close_btn.configure(bg='#ffcccc', fg='#990000'))
+        close_btn.bind('<Leave>', lambda e: close_btn.configure(bg='#d9d9d9', fg='#cc0000'))
 
         # Store tab data
         self.tabs[tab_id] = {
@@ -209,6 +229,7 @@ class CustomTabBar(ttk.Frame):
             'widget': tab_frame,
             'text_label': text_label,
             'icon_label': icon_label,
+            'close_btn': close_btn,
             'modified': modified
         }
         self.tab_order.append(tab_id)

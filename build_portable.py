@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build Script for Notepad++ Replica
+Build Script for FeatherPad
 
 Creates a portable single-file executable using PyInstaller.
 
@@ -43,7 +43,7 @@ def build_executable():
         sys.executable, '-m', 'PyInstaller',
         '--onefile',                    # Single file executable
         '--windowed',                   # No console window
-        '--name', 'NotepadReplica',     # Output name
+        '--name', 'FeatherPad',     # Output name
         '--clean',                      # Clean PyInstaller cache
         '--noconfirm',                  # Replace output without asking
 
@@ -69,7 +69,7 @@ def build_executable():
     result = subprocess.run(cmd, cwd=script_dir)
 
     if result.returncode == 0:
-        exe_path = os.path.join(script_dir, 'dist', 'NotepadReplica.exe')
+        exe_path = os.path.join(script_dir, 'dist', 'FeatherPad.exe')
         if os.path.exists(exe_path):
             print()
             print("=" * 60)
@@ -79,9 +79,9 @@ def build_executable():
             print(f"\nFile size: {os.path.getsize(exe_path) / (1024*1024):.1f} MB")
             print("\nYou can now copy this file anywhere and run it!")
             print("\nUsage:")
-            print("  NotepadReplica.exe                  - Launch editor")
-            print("  NotepadReplica.exe --recover        - Auto-recover Notepad++ session")
-            print("  NotepadReplica.exe file.txt         - Open specific file")
+            print("  FeatherPad.exe                  - Launch editor")
+            print("  FeatherPad.exe --recover        - Auto-recover Notepad++ session")
+            print("  FeatherPad.exe file.txt         - Open specific file")
             return True
 
     print("Build failed!")
@@ -91,7 +91,7 @@ def build_executable():
 def main():
     """Main build process"""
     print("=" * 60)
-    print("Notepad++ Replica - Portable Build Script")
+    print("FeatherPad - Portable Build Script")
     print("=" * 60)
     print()
 
