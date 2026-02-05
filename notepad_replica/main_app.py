@@ -461,28 +461,50 @@ class FeatherPad(tk.Tk):
 
     def _setup_toolbar(self):
         """Set up toolbar"""
-        toolbar = ttk.Frame(self, padding=2)
-        toolbar.pack(side=tk.TOP, fill=tk.X)
+        # Use tk.Frame for full theme control
+        self.toolbar = tk.Frame(self, padx=2, pady=2, bg='#f5f5f5')
+        self.toolbar.pack(side=tk.TOP, fill=tk.X)
 
-        # Toolbar buttons
-        ttk.Button(toolbar, text="New", command=self.new_file, width=6).pack(side=tk.LEFT, padx=1)
-        ttk.Button(toolbar, text="Open", command=self.open_file, width=6).pack(side=tk.LEFT, padx=1)
-        ttk.Button(toolbar, text="Save", command=self.save_file, width=6).pack(side=tk.LEFT, padx=1)
+        # Store buttons for theming
+        self.toolbar_buttons = []
 
-        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        # Toolbar buttons (using tk.Button for theme support)
+        btn_config = {'relief': 'flat', 'padx': 8, 'pady': 2, 'bd': 1}
 
-        ttk.Button(toolbar, text="Undo", command=self.undo, width=6).pack(side=tk.LEFT, padx=1)
-        ttk.Button(toolbar, text="Redo", command=self.redo, width=6).pack(side=tk.LEFT, padx=1)
+        btn_new = tk.Button(self.toolbar, text="New", command=self.new_file, **btn_config)
+        btn_new.pack(side=tk.LEFT, padx=1)
+        self.toolbar_buttons.append(btn_new)
 
-        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        btn_open = tk.Button(self.toolbar, text="Open", command=self.open_file, **btn_config)
+        btn_open.pack(side=tk.LEFT, padx=1)
+        self.toolbar_buttons.append(btn_open)
 
-        ttk.Button(toolbar, text="Find", command=self.show_find_dialog, width=6).pack(side=tk.LEFT, padx=1)
+        btn_save = tk.Button(self.toolbar, text="Save", command=self.save_file, **btn_config)
+        btn_save.pack(side=tk.LEFT, padx=1)
+        self.toolbar_buttons.append(btn_save)
 
-        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
+        tk.Frame(self.toolbar, width=2, bg='#cccccc').pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=2)
 
-        # Recovery button (highlighted)
-        recovery_btn = ttk.Button(toolbar, text="Recover Notepad++", command=self.recover_notepadpp_session)
-        recovery_btn.pack(side=tk.LEFT, padx=5)
+        btn_undo = tk.Button(self.toolbar, text="Undo", command=self.undo, **btn_config)
+        btn_undo.pack(side=tk.LEFT, padx=1)
+        self.toolbar_buttons.append(btn_undo)
+
+        btn_redo = tk.Button(self.toolbar, text="Redo", command=self.redo, **btn_config)
+        btn_redo.pack(side=tk.LEFT, padx=1)
+        self.toolbar_buttons.append(btn_redo)
+
+        tk.Frame(self.toolbar, width=2, bg='#cccccc').pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=2)
+
+        btn_find = tk.Button(self.toolbar, text="Find", command=self.show_find_dialog, **btn_config)
+        btn_find.pack(side=tk.LEFT, padx=1)
+        self.toolbar_buttons.append(btn_find)
+
+        tk.Frame(self.toolbar, width=2, bg='#cccccc').pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=2)
+
+        # Recovery button
+        btn_recover = tk.Button(self.toolbar, text="Recover Notepad++", command=self.recover_notepadpp_session, **btn_config)
+        btn_recover.pack(side=tk.LEFT, padx=5)
+        self.toolbar_buttons.append(btn_recover)
 
     def _setup_tabbar(self):
         """Set up the custom tab bar"""
@@ -512,13 +534,14 @@ class FeatherPad(tk.Tk):
 
     def _setup_statusbar(self):
         """Set up status bar"""
-        self.statusbar = ttk.Frame(self, padding=2)
+        # Use tk.Frame for full theme control
+        self.statusbar = tk.Frame(self, padx=5, pady=2, bg='#f0f0f0')
         self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        self.status_text = ttk.Label(self.statusbar, text="Ready")
+        self.status_text = tk.Label(self.statusbar, text="Ready", bg='#f0f0f0')
         self.status_text.pack(side=tk.LEFT)
 
-        self.tab_count_label = ttk.Label(self.statusbar, text="Tabs: 0")
+        self.tab_count_label = tk.Label(self.statusbar, text="Tabs: 0", bg='#f0f0f0')
         self.tab_count_label.pack(side=tk.RIGHT, padx=10)
 
     def _setup_bindings(self):
@@ -1179,16 +1202,26 @@ class FeatherPad(tk.Tk):
         """Apply the selected theme to the application"""
         theme = self.theme_var.get()
 
-        # Theme colors
+        # Claude Code inspired dark theme colors
         if theme == 'dark':
-            editor_bg = '#1e1e1e'
-            editor_fg = '#d4d4d4'
-            line_num_bg = '#252526'
-            line_num_fg = '#858585'
-            select_bg = '#264f78'
+            # Main backgrounds
+            editor_bg = '#0d0d0d'      # Very dark, almost black
+            editor_fg = '#e5e5e5'      # Light grey text
+            line_num_bg = '#1a1a1a'    # Slightly lighter dark
+            line_num_fg = '#6b7280'    # Muted grey
+            select_bg = '#2563eb'      # Blue selection
             select_fg = '#ffffff'
-            cursor_color = '#ffffff'
-            main_bg = '#2d2d2d'
+            cursor_color = '#f5f5f5'
+            main_bg = '#171717'        # Dark grey background
+            toolbar_bg = '#262626'     # Toolbar dark grey
+            status_bg = '#1a1a1a'      # Status bar dark
+            button_bg = '#374151'      # Button grey
+            button_fg = '#e5e5e5'
+            menu_bg = '#1f1f1f'
+            menu_fg = '#e5e5e5'
+            border_color = '#404040'
+            scrollbar_bg = '#262626'
+            scrollbar_fg = '#525252'
         else:  # light
             editor_bg = '#ffffff'
             editor_fg = '#000000'
@@ -1198,9 +1231,68 @@ class FeatherPad(tk.Tk):
             select_fg = '#ffffff'
             cursor_color = '#000000'
             main_bg = '#f0f0f0'
+            toolbar_bg = '#f5f5f5'
+            status_bg = '#f0f0f0'
+            button_bg = '#e0e0e0'
+            button_fg = '#000000'
+            menu_bg = '#ffffff'
+            menu_fg = '#000000'
+            border_color = '#cccccc'
+            scrollbar_bg = '#f0f0f0'
+            scrollbar_fg = '#c0c0c0'
 
         # Apply to tab bar
         self.tabbar.set_theme(theme)
+
+        # Configure ttk styles for the theme
+        style = ttk.Style()
+
+        if theme == 'dark':
+            # Configure dark theme styles
+            style.configure('TFrame', background=main_bg)
+            style.configure('TLabel', background=main_bg, foreground=editor_fg)
+            style.configure('TButton', background=button_bg, foreground=button_fg)
+            style.map('TButton',
+                      background=[('active', '#4b5563'), ('pressed', '#1f2937')],
+                      foreground=[('active', '#ffffff')])
+            style.configure('TCheckbutton', background=main_bg, foreground=editor_fg)
+            style.configure('TRadiobutton', background=main_bg, foreground=editor_fg)
+            style.configure('TEntry', fieldbackground='#374151', foreground=editor_fg)
+            style.configure('TSeparator', background=border_color)
+
+            # Scrollbar styling for dark mode
+            style.configure('Vertical.TScrollbar',
+                           background=scrollbar_bg,
+                           troughcolor=main_bg,
+                           bordercolor=main_bg,
+                           arrowcolor=scrollbar_fg)
+            style.configure('Horizontal.TScrollbar',
+                           background=scrollbar_bg,
+                           troughcolor=main_bg,
+                           bordercolor=main_bg,
+                           arrowcolor=scrollbar_fg)
+            style.map('Vertical.TScrollbar',
+                     background=[('active', '#525252'), ('pressed', '#6b7280')])
+            style.map('Horizontal.TScrollbar',
+                     background=[('active', '#525252'), ('pressed', '#6b7280')])
+        else:
+            # Configure light theme styles
+            style.configure('TFrame', background=main_bg)
+            style.configure('TLabel', background=main_bg, foreground='#000000')
+            style.configure('TButton', background=button_bg, foreground=button_fg)
+            style.map('TButton',
+                      background=[('active', '#d0d0d0'), ('pressed', '#c0c0c0')])
+            style.configure('TCheckbutton', background=main_bg, foreground='#000000')
+            style.configure('TRadiobutton', background=main_bg, foreground='#000000')
+            style.configure('TEntry', fieldbackground='#ffffff', foreground='#000000')
+            style.configure('TSeparator', background='#cccccc')
+
+            style.configure('Vertical.TScrollbar',
+                           background=scrollbar_bg,
+                           troughcolor='#e0e0e0')
+            style.configure('Horizontal.TScrollbar',
+                           background=scrollbar_bg,
+                           troughcolor='#e0e0e0')
 
         # Apply to all editors
         for tab in self.tabs.values():
@@ -1212,22 +1304,49 @@ class FeatherPad(tk.Tk):
                 selectforeground=select_fg
             )
             tab.editor.line_numbers.configure(bg=line_num_bg)
-            # Update line number colors by redrawing
+            # Store theme colors for line numbers redraw
+            tab.editor.line_numbers.fg_color = line_num_fg
             tab.editor.line_numbers.redraw()
 
-        # Apply to main window and containers
+        # Apply to main window
         self.configure(bg=main_bg)
-        self.editor_container.configure(style='Dark.TFrame' if theme == 'dark' else 'TFrame')
 
-        # Configure styles for dark theme
-        style = ttk.Style()
-        if theme == 'dark':
-            style.configure('Dark.TFrame', background=main_bg)
-            style.configure('TFrame', background=main_bg)
-            style.configure('TLabel', background=main_bg, foreground='#d4d4d4')
-        else:
-            style.configure('TFrame', background='#f0f0f0')
-            style.configure('TLabel', background='#f0f0f0', foreground='#000000')
+        # Apply to menu bar
+        self.menubar.configure(bg=menu_bg, fg=menu_fg,
+                               activebackground=select_bg,
+                               activeforeground=select_fg)
+        # Style all submenus
+        for menu_name in ['File', 'Edit', 'Search', 'View', 'Encoding', 'Theme', 'Help']:
+            try:
+                menu_index = self.menubar.index(menu_name)
+                submenu = self.menubar.nametowidget(self.menubar.entrycget(menu_index, 'menu'))
+                submenu.configure(bg=menu_bg, fg=menu_fg,
+                                 activebackground=select_bg,
+                                 activeforeground=select_fg)
+            except:
+                pass
+
+        # Apply to status bar
+        self.statusbar.configure(bg=status_bg)
+        self.status_text.configure(bg=status_bg, fg=editor_fg)
+        self.tab_count_label.configure(bg=status_bg, fg=editor_fg)
+
+        # Apply to toolbar
+        self.toolbar.configure(bg=toolbar_bg)
+        for btn in self.toolbar_buttons:
+            btn.configure(
+                bg=button_bg,
+                fg=button_fg,
+                activebackground=select_bg,
+                activeforeground=select_fg,
+                highlightbackground=toolbar_bg
+            )
+        # Update toolbar separators
+        for child in self.toolbar.winfo_children():
+            if isinstance(child, tk.Frame) and child not in []:
+                # This is a separator frame
+                if child.winfo_width() <= 5:  # separator is thin
+                    child.configure(bg=border_color)
 
     # Help
 

@@ -14,7 +14,7 @@ from tkinter import ttk, font
 from typing import Callable, Optional, Dict, List
 
 
-# Theme color definitions
+# Theme color definitions (Claude Code inspired dark theme)
 THEMES = {
     'light': {
         'tab_bar_bg': '#e0e0e0',
@@ -28,15 +28,15 @@ THEMES = {
         'close_btn_hover_fg': '#990000',
     },
     'dark': {
-        'tab_bar_bg': '#2d2d2d',
-        'tab_selected_bg': '#3c3c3c',
-        'tab_selected_fg': '#ffffff',
-        'tab_unselected_bg': '#252525',
-        'tab_unselected_fg': '#888888',
-        'close_btn_fg': '#ff6666',
-        'close_btn_bg': '#3c3c3c',
-        'close_btn_hover_bg': '#5c3c3c',
-        'close_btn_hover_fg': '#ff9999',
+        'tab_bar_bg': '#1a1a1a',        # Very dark background
+        'tab_selected_bg': '#2d2d2d',   # Selected tab slightly lighter
+        'tab_selected_fg': '#e5e5e5',   # Light grey text
+        'tab_unselected_bg': '#141414', # Darker unselected tabs
+        'tab_unselected_fg': '#6b7280', # Muted grey text
+        'close_btn_fg': '#ef4444',      # Red close button
+        'close_btn_bg': '#2d2d2d',
+        'close_btn_hover_bg': '#3f1f1f',
+        'close_btn_hover_fg': '#ff6b6b',
     }
 }
 

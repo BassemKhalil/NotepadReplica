@@ -18,6 +18,7 @@ class LineNumbers(tk.Canvas):
         super().__init__(parent, **kwargs)
         self.text_widget = text_widget
         self.font = font.Font(family='Consolas', size=10)
+        self.fg_color = '#666666'  # Default color, can be set by theme
         self.configure(width=50, bg='#f0f0f0', highlightthickness=0)
 
     def redraw(self):
@@ -41,7 +42,7 @@ class LineNumbers(tk.Canvas):
                     anchor="ne",
                     text=str(line_num),
                     font=self.font,
-                    fill='#666666'
+                    fill=self.fg_color
                 )
 
 
