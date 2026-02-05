@@ -116,7 +116,7 @@ def cleanup_old_backups(max_age_days: int = 7):
 
 
 def save_session(tabs_data: List[Dict], active_index: int, new_file_counter: int,
-                 geometry: str, word_wrap: bool) -> bool:
+                 geometry: str, word_wrap: bool, theme: str = 'light') -> bool:
     """
     Save the current session state.
 
@@ -134,6 +134,7 @@ def save_session(tabs_data: List[Dict], active_index: int, new_file_counter: int
         new_file_counter: Counter for new file naming
         geometry: Window geometry string
         word_wrap: Word wrap state
+        theme: Theme name ('light' or 'dark')
 
     Returns:
         True if saved successfully
@@ -182,9 +183,13 @@ def save_session(tabs_data: List[Dict], active_index: int, new_file_counter: int
             timestamp=datetime.now().isoformat()
         )
 
+        # Convert to dict and add theme
+        session_dict = asdict(session)
+        session_dict['theme'] = theme
+
         session_file = get_session_file()
         with open(session_file, 'w', encoding='utf-8') as f:
-            json.dump(asdict(session), f, indent=2)
+            json.dump(session_dict, f, indent=2)
 
         return True
 

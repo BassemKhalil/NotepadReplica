@@ -6,11 +6,39 @@ A Notepad++-style tab bar with:
 - Close button (x) on each tab
 - Double-click on empty space to create new tab
 - Scrollable tabs
+- Theme support (light/dark mode)
 """
 
 import tkinter as tk
 from tkinter import ttk, font
 from typing import Callable, Optional, Dict, List
+
+
+# Theme color definitions
+THEMES = {
+    'light': {
+        'tab_bar_bg': '#e0e0e0',
+        'tab_selected_bg': '#ffffff',
+        'tab_selected_fg': '#000000',
+        'tab_unselected_bg': '#c0c0c0',
+        'tab_unselected_fg': '#666666',
+        'close_btn_fg': '#cc0000',
+        'close_btn_bg': '#d9d9d9',
+        'close_btn_hover_bg': '#ffcccc',
+        'close_btn_hover_fg': '#990000',
+    },
+    'dark': {
+        'tab_bar_bg': '#2d2d2d',
+        'tab_selected_bg': '#3c3c3c',
+        'tab_selected_fg': '#ffffff',
+        'tab_unselected_bg': '#252525',
+        'tab_unselected_fg': '#888888',
+        'close_btn_fg': '#ff6666',
+        'close_btn_bg': '#3c3c3c',
+        'close_btn_hover_bg': '#5c3c3c',
+        'close_btn_hover_fg': '#ff9999',
+    }
+}
 
 
 class CustomTabBar(ttk.Frame):
@@ -31,11 +59,32 @@ class CustomTabBar(ttk.Frame):
         self.tab_order: List[str] = []  # Maintain tab order
         self.selected_tab: Optional[str] = None
 
+        # Current theme
+        self.current_theme = 'light'
+        self.colors = THEMES['light']
+
         # Scroll position
         self.scroll_offset = 0
         self.visible_tabs_start = 0
 
         self._setup_ui()
+
+    def set_theme(self, theme_name: str):
+        """Set the current theme"""
+        if theme_name in THEMES:
+            self.current_theme = theme_name
+            self.colors = THEMES[theme_name]
+            self._apply_theme()
+
+    def _apply_theme(self):
+        """Apply the current theme to all UI elements"""
+        # Update canvas and spacer background
+        self.canvas.configure(bg=self.colors['tab_bar_bg'])
+        self.spacer_frame.configure(bg=self.colors['tab_bar_bg'])
+
+        # Update all tabs
+        for tab_id, tab_data in self.tabs.items():
+            self._style_tab(tab_id, is_selected=(tab_id == self.selected_tab))
 
     def _setup_ui(self):
         """Set up the tab bar UI"""
@@ -191,17 +240,22 @@ class CustomTabBar(ttk.Frame):
 
     def add_tab(self, tab_id: str, text: str, modified: bool = False) -> str:
         """Add a new tab"""
-        # Create tab frame - insert before spacer
-        tab_frame = ttk.Frame(self.tabs_frame, relief='raised', borderwidth=1)
+        # Create tab frame - insert before spacer (use tk.Frame for better color control)
+        tab_frame = tk.Frame(self.tabs_frame, relief='raised', borderwidth=1,
+                             bg=self.colors['tab_unselected_bg'])
         tab_frame.pack(side=tk.LEFT, padx=1, pady=2, before=self.spacer_frame)
 
         # Icon label (file icon simulation)
-        icon_label = ttk.Label(tab_frame, text="\U0001F4C4", width=2)  # Document emoji
+        icon_label = tk.Label(tab_frame, text="\U0001F4C4", width=2,
+                              bg=self.colors['tab_unselected_bg'],
+                              fg=self.colors['tab_unselected_fg'])
         icon_label.pack(side=tk.LEFT, padx=(3, 0))
 
         # Text label
         display_text = f"*{text}" if modified else text
-        text_label = ttk.Label(tab_frame, text=display_text, padding=(3, 2))
+        text_label = tk.Label(tab_frame, text=display_text, padx=3, pady=2,
+                              bg=self.colors['tab_unselected_bg'],
+                              fg=self.colors['tab_unselected_fg'])
         text_label.pack(side=tk.LEFT)
 
         # Small red close button using tk.Label
@@ -210,18 +264,27 @@ class CustomTabBar(ttk.Frame):
             tab_frame,
             text="x",
             font=close_font,
-            fg='#cc0000',  # Red color
-            bg='#d9d9d9',
+            fg=self.colors['close_btn_fg'],
+            bg=self.colors['tab_unselected_bg'],
             cursor='hand2',
             padx=2,
             pady=0
         )
         close_btn.pack(side=tk.LEFT, padx=(2, 3))
 
-        # Bind close button events
+        # Bind close button events with theme-aware colors
+        def on_close_enter(e):
+            close_btn.configure(bg=self.colors['close_btn_hover_bg'],
+                               fg=self.colors['close_btn_hover_fg'])
+
+        def on_close_leave(e):
+            is_sel = (tab_id == self.selected_tab)
+            bg = self.colors['tab_selected_bg'] if is_sel else self.colors['tab_unselected_bg']
+            close_btn.configure(bg=bg, fg=self.colors['close_btn_fg'])
+
         close_btn.bind('<Button-1>', lambda e, tid=tab_id: self.on_tab_close(tid))
-        close_btn.bind('<Enter>', lambda e: close_btn.configure(bg='#ffcccc', fg='#990000'))
-        close_btn.bind('<Leave>', lambda e: close_btn.configure(bg='#d9d9d9', fg='#cc0000'))
+        close_btn.bind('<Enter>', on_close_enter)
+        close_btn.bind('<Leave>', on_close_leave)
 
         # Store tab data
         self.tabs[tab_id] = {
@@ -245,8 +308,35 @@ class CustomTabBar(ttk.Frame):
         # Auto-select if first tab
         if len(self.tabs) == 1:
             self.select(tab_id)
+        else:
+            # Style as unselected
+            self._style_tab(tab_id, is_selected=False)
 
         return tab_id
+
+    def _style_tab(self, tab_id: str, is_selected: bool):
+        """Apply styling to a tab based on selection state"""
+        if tab_id not in self.tabs:
+            return
+
+        tab_data = self.tabs[tab_id]
+
+        if is_selected:
+            bg = self.colors['tab_selected_bg']
+            fg = self.colors['tab_selected_fg']
+            relief = 'sunken'
+        else:
+            bg = self.colors['tab_unselected_bg']
+            fg = self.colors['tab_unselected_fg']
+            relief = 'raised'
+
+        # Update tab frame
+        tab_data['widget'].configure(bg=bg, relief=relief)
+
+        # Update labels
+        tab_data['text_label'].configure(bg=bg, fg=fg)
+        tab_data['icon_label'].configure(bg=bg, fg=fg)
+        tab_data['close_btn'].configure(bg=bg, fg=self.colors['close_btn_fg'])
 
     def remove_tab(self, tab_id: str):
         """Remove a tab"""
@@ -274,22 +364,11 @@ class CustomTabBar(ttk.Frame):
 
         # Deselect previous tab
         if self.selected_tab and self.selected_tab in self.tabs:
-            prev_tab = self.tabs[self.selected_tab]
-            prev_tab['widget'].configure(relief='raised')
-            # Reset background
-            for child in prev_tab['widget'].winfo_children():
-                if isinstance(child, ttk.Label):
-                    child.configure(background='')
+            self._style_tab(self.selected_tab, is_selected=False)
 
         # Select new tab
         self.selected_tab = tab_id
-        tab_data = self.tabs[tab_id]
-        tab_data['widget'].configure(relief='sunken')
-
-        # Highlight background
-        for child in tab_data['widget'].winfo_children():
-            if isinstance(child, ttk.Label):
-                child.configure(background='#ffffff')
+        self._style_tab(tab_id, is_selected=True)
 
         # Ensure visible
         idx = self.tab_order.index(tab_id)

@@ -443,6 +443,16 @@ class FeatherPad(tk.Tk):
             encoding_menu.add_radiobutton(label=enc, variable=self.encoding_var,
                                            value=enc.lower().replace(' ', '-').replace('(', '').replace(')', ''))
 
+        # Theme menu
+        theme_menu = tk.Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Theme", menu=theme_menu)
+
+        self.theme_var = tk.StringVar(value='light')
+        theme_menu.add_radiobutton(label="Light Mode", variable=self.theme_var,
+                                    value='light', command=self._apply_theme)
+        theme_menu.add_radiobutton(label="Dark Mode", variable=self.theme_var,
+                                    value='dark', command=self._apply_theme)
+
         # Help menu
         help_menu = tk.Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Help", menu=help_menu)
@@ -1165,6 +1175,60 @@ class FeatherPad(tk.Tk):
             tab.editor.text.configure(font=new_font)
             tab.editor.line_numbers.font = new_font
 
+    def _apply_theme(self):
+        """Apply the selected theme to the application"""
+        theme = self.theme_var.get()
+
+        # Theme colors
+        if theme == 'dark':
+            editor_bg = '#1e1e1e'
+            editor_fg = '#d4d4d4'
+            line_num_bg = '#252526'
+            line_num_fg = '#858585'
+            select_bg = '#264f78'
+            select_fg = '#ffffff'
+            cursor_color = '#ffffff'
+            main_bg = '#2d2d2d'
+        else:  # light
+            editor_bg = '#ffffff'
+            editor_fg = '#000000'
+            line_num_bg = '#f0f0f0'
+            line_num_fg = '#666666'
+            select_bg = '#0078d7'
+            select_fg = '#ffffff'
+            cursor_color = '#000000'
+            main_bg = '#f0f0f0'
+
+        # Apply to tab bar
+        self.tabbar.set_theme(theme)
+
+        # Apply to all editors
+        for tab in self.tabs.values():
+            tab.editor.text.configure(
+                bg=editor_bg,
+                fg=editor_fg,
+                insertbackground=cursor_color,
+                selectbackground=select_bg,
+                selectforeground=select_fg
+            )
+            tab.editor.line_numbers.configure(bg=line_num_bg)
+            # Update line number colors by redrawing
+            tab.editor.line_numbers.redraw()
+
+        # Apply to main window and containers
+        self.configure(bg=main_bg)
+        self.editor_container.configure(style='Dark.TFrame' if theme == 'dark' else 'TFrame')
+
+        # Configure styles for dark theme
+        style = ttk.Style()
+        if theme == 'dark':
+            style.configure('Dark.TFrame', background=main_bg)
+            style.configure('TFrame', background=main_bg)
+            style.configure('TLabel', background=main_bg, foreground='#d4d4d4')
+        else:
+            style.configure('TFrame', background='#f0f0f0')
+            style.configure('TLabel', background='#f0f0f0', foreground='#000000')
+
     # Help
 
     def show_about(self):
@@ -1250,7 +1314,8 @@ Navigation:
             active_index,
             self.new_file_counter,
             self.geometry(),
-            self.word_wrap_enabled
+            self.word_wrap_enabled,
+            self.theme_var.get()
         )
 
     def _restore_session(self) -> bool:
@@ -1270,6 +1335,11 @@ Navigation:
         # Restore word wrap state
         self.word_wrap_enabled = session_data.get('word_wrap_enabled', False)
         self.word_wrap_var.set(self.word_wrap_enabled)
+
+        # Restore theme
+        theme = session_data.get('theme', 'light')
+        self.theme_var.set(theme)
+        self._apply_theme()
 
         # Restore new file counter
         self.new_file_counter = session_data.get('new_file_counter', 1)
