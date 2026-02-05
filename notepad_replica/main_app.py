@@ -16,6 +16,8 @@ from .session_parser import (
     recover_session, get_notepadpp_paths, TabInfo, SessionData,
     get_all_backup_files, read_file_content
 )
+from .session_manager import save_session, load_session, cleanup_old_backups
+from .custom_tabbar import CustomTabBar
 
 
 @dataclass
@@ -30,15 +32,21 @@ class Tab:
 
 
 class FindReplaceDialog(tk.Toplevel):
-    """Find and Replace dialog"""
+    """Find and Replace dialog with support for searching all tabs"""
 
-    def __init__(self, parent, editor: TextEditor):
+    def __init__(self, parent, editor: TextEditor, get_all_tabs_func=None, select_tab_func=None):
         super().__init__(parent)
         self.editor = editor
+        self.get_all_tabs = get_all_tabs_func  # Function to get all tabs
+        self.select_tab = select_tab_func  # Function to select a specific tab
         self.title("Find and Replace")
-        self.geometry("450x200")
+        self.geometry("500x250")
         self.resizable(False, False)
         self.transient(parent)
+
+        # Track search position across tabs
+        self.current_search_tab_index = 0
+        self.last_search_pos = '1.0'
 
         self._setup_ui()
         self.find_entry.focus_set()
@@ -72,37 +80,195 @@ class FindReplaceDialog(tk.Toplevel):
         ttk.Checkbutton(options_frame, text="Regex",
                         variable=self.regex_var).pack(side=tk.LEFT, padx=10)
 
-        # Buttons
-        btn_frame = ttk.Frame(self, padding=10)
-        btn_frame.pack(fill=tk.X)
+        self.all_tabs_var = tk.BooleanVar()
+        ttk.Checkbutton(options_frame, text="Search all tabs",
+                        variable=self.all_tabs_var).pack(side=tk.LEFT, padx=10)
 
-        ttk.Button(btn_frame, text="Find Next",
+        # Buttons row 1
+        btn_frame1 = ttk.Frame(self, padding=10)
+        btn_frame1.pack(fill=tk.X)
+
+        ttk.Button(btn_frame1, text="Find Next",
                    command=self._find_next).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Replace",
+        ttk.Button(btn_frame1, text="Find Previous",
+                   command=self._find_prev).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame1, text="Find All in Tabs",
+                   command=self._find_all_tabs).pack(side=tk.LEFT, padx=2)
+
+        # Buttons row 2
+        btn_frame2 = ttk.Frame(self, padding=10)
+        btn_frame2.pack(fill=tk.X)
+
+        ttk.Button(btn_frame2, text="Replace",
                    command=self._replace).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Replace All",
+        ttk.Button(btn_frame2, text="Replace All",
                    command=self._replace_all).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Close",
+        ttk.Button(btn_frame2, text="Close",
                    command=self.destroy).pack(side=tk.RIGHT, padx=2)
+
+        # Status label
+        self.status_label = ttk.Label(self, text="", padding=5)
+        self.status_label.pack(fill=tk.X)
 
         # Bind Enter key
         self.find_entry.bind('<Return>', lambda e: self._find_next())
+        self.find_entry.bind('<Shift-Return>', lambda e: self._find_prev())
+
+    def _highlight_match(self, editor, start_pos, end_pos):
+        """Highlight a match in the editor"""
+        editor.text.tag_remove(tk.SEL, '1.0', tk.END)
+        editor.text.tag_add(tk.SEL, start_pos, end_pos)
+        editor.text.mark_set(tk.INSERT, end_pos)
+        editor.text.see(start_pos)
+        editor.text.focus_set()
 
     def _find_next(self):
         pattern = self.find_entry.get()
-        if pattern:
+        if not pattern:
+            return
+
+        if self.all_tabs_var.get() and self.get_all_tabs:
+            self._find_in_all_tabs(pattern, forward=True)
+        else:
+            self._find_in_current(pattern, forward=True)
+
+    def _find_prev(self):
+        pattern = self.find_entry.get()
+        if not pattern:
+            return
+
+        # For previous, we need to search backwards
+        self._find_in_current(pattern, forward=False)
+
+    def _find_in_current(self, pattern, forward=True):
+        """Find in current editor"""
+        if forward:
+            # Start from cursor position
+            start = self.editor.text.index(tk.INSERT)
             result = self.editor.find_text(
-                pattern,
-                self.case_var.get(),
-                self.regex_var.get()
+                pattern, self.case_var.get(), self.regex_var.get(), start
+            )
+            if not result:
+                # Wrap around to beginning
+                result = self.editor.find_text(
+                    pattern, self.case_var.get(), self.regex_var.get(), '1.0'
+                )
+        else:
+            # Search backwards
+            end_pos = self.editor.text.index(tk.INSERT)
+            result = self._find_backwards(self.editor, pattern, end_pos)
+
+        if result:
+            self._highlight_match(self.editor, result[0], result[1])
+            self.status_label.config(text=f"Found at line {result[0].split('.')[0]}")
+        else:
+            self.status_label.config(text="No matches found")
+            messagebox.showinfo("Find", "No matches found")
+
+    def _find_backwards(self, editor, pattern, before_pos):
+        """Find text searching backwards"""
+        content = editor.text.get('1.0', before_pos)
+        import re
+        flags = 0 if self.case_var.get() else re.IGNORECASE
+
+        if self.regex_var.get():
+            matches = list(re.finditer(pattern, content, flags))
+        else:
+            escaped = re.escape(pattern)
+            matches = list(re.finditer(escaped, content, flags))
+
+        if matches:
+            last_match = matches[-1]
+            # Convert string position to text index
+            lines = content[:last_match.start()].split('\n')
+            line_num = len(lines)
+            col = len(lines[-1]) if lines else 0
+            start_pos = f"{line_num}.{col}"
+            end_pos = f"{start_pos}+{len(last_match.group())}c"
+            return (start_pos, end_pos)
+        return None
+
+    def _find_in_all_tabs(self, pattern, forward=True):
+        """Find pattern across all tabs"""
+        if not self.get_all_tabs or not self.select_tab:
+            self._find_in_current(pattern, forward)
+            return
+
+        tabs = self.get_all_tabs()
+        if not tabs:
+            return
+
+        # Get current tab index
+        current_idx = 0
+        for i, (tab_id, tab) in enumerate(tabs):
+            if tab.editor == self.editor:
+                current_idx = i
+                break
+
+        # Start search from current cursor position in current tab
+        start_pos = self.editor.text.index(tk.INSERT)
+
+        # Search in current tab first (from cursor)
+        result = self.editor.find_text(
+            pattern, self.case_var.get(), self.regex_var.get(), start_pos
+        )
+        if result:
+            self._highlight_match(self.editor, result[0], result[1])
+            self.status_label.config(text=f"Found in current tab at line {result[0].split('.')[0]}")
+            return
+
+        # Search in other tabs
+        for i in range(1, len(tabs) + 1):
+            next_idx = (current_idx + i) % len(tabs)
+            tab_id, tab = tabs[next_idx]
+
+            result = tab.editor.find_text(
+                pattern, self.case_var.get(), self.regex_var.get(), '1.0'
             )
             if result:
-                self.editor.text.tag_remove(tk.SEL, '1.0', tk.END)
-                self.editor.text.tag_add(tk.SEL, result[0], result[1])
-                self.editor.text.mark_set(tk.INSERT, result[1])
-                self.editor.text.see(result[0])
-            else:
-                messagebox.showinfo("Find", "No matches found")
+                # Switch to that tab and highlight
+                self.select_tab(tab_id)
+                self.editor = tab.editor
+                self._highlight_match(tab.editor, result[0], result[1])
+                self.status_label.config(text=f"Found in '{tab.filename}' at line {result[0].split('.')[0]}")
+                return
+
+        self.status_label.config(text="No matches found in any tab")
+        messagebox.showinfo("Find", "No matches found in any open tab")
+
+    def _find_all_tabs(self):
+        """Find all occurrences in all tabs and show summary"""
+        pattern = self.find_entry.get()
+        if not pattern or not self.get_all_tabs:
+            return
+
+        tabs = self.get_all_tabs()
+        total_matches = 0
+        results = []
+
+        for tab_id, tab in tabs:
+            count = 0
+            start = '1.0'
+            while True:
+                result = tab.editor.find_text(
+                    pattern, self.case_var.get(), self.regex_var.get(), start
+                )
+                if not result:
+                    break
+                count += 1
+                start = f"{result[1]}"
+
+            if count > 0:
+                results.append(f"{tab.filename}: {count} matches")
+                total_matches += count
+
+        if total_matches > 0:
+            summary = f"Total: {total_matches} matches\n\n" + "\n".join(results)
+            self.status_label.config(text=f"Found {total_matches} matches in {len(results)} tabs")
+            messagebox.showinfo("Find All Results", summary)
+        else:
+            self.status_label.config(text="No matches found")
+            messagebox.showinfo("Find All Results", "No matches found in any tab")
 
     def _replace(self):
         find_pattern = self.find_entry.get()
@@ -116,11 +282,27 @@ class FindReplaceDialog(tk.Toplevel):
     def _replace_all(self):
         find_pattern = self.find_entry.get()
         replace_with = self.replace_entry.get()
-        if find_pattern:
+        if not find_pattern:
+            return
+
+        if self.all_tabs_var.get() and self.get_all_tabs:
+            # Replace in all tabs
+            tabs = self.get_all_tabs()
+            total_count = 0
+            for tab_id, tab in tabs:
+                count = tab.editor.replace_all(
+                    find_pattern, replace_with,
+                    self.case_var.get(), self.regex_var.get()
+                )
+                total_count += count
+            self.status_label.config(text=f"Replaced {total_count} occurrences in all tabs")
+            messagebox.showinfo("Replace All", f"Replaced {total_count} occurrences in all tabs")
+        else:
             count = self.editor.replace_all(
                 find_pattern, replace_with,
                 self.case_var.get(), self.regex_var.get()
             )
+            self.status_label.config(text=f"Replaced {count} occurrences")
             messagebox.showinfo("Replace All", f"Replaced {count} occurrences")
 
 
@@ -164,7 +346,8 @@ class NotepadReplica(tk.Tk):
         self._setup_styles()
         self._setup_menu()
         self._setup_toolbar()
-        self._setup_notebook()
+        self._setup_tabbar()
+        self._setup_editor_container()
         self._setup_statusbar()
         self._setup_bindings()
 
@@ -174,8 +357,13 @@ class NotepadReplica(tk.Tk):
         except:
             pass
 
-        # Start with a new tab
-        self.new_file()
+        # Clean up old backups
+        cleanup_old_backups()
+
+        # Try to restore previous session
+        if not self._restore_session():
+            # Start with a new tab if no session
+            self.new_file()
 
     def _setup_styles(self):
         """Configure ttk styles"""
@@ -286,16 +474,15 @@ class NotepadReplica(tk.Tk):
         recovery_btn = ttk.Button(toolbar, text="Recover Notepad++", command=self.recover_notepadpp_session)
         recovery_btn.pack(side=tk.LEFT, padx=5)
 
-    def _setup_notebook(self):
-        """Set up the tabbed notebook"""
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-
-        # Bind tab change event
-        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
-
-        # Bind middle-click to close tab
-        self.notebook.bind('<Button-2>', self._on_middle_click)
+    def _setup_tabbar(self):
+        """Set up the custom tab bar"""
+        self.tabbar = CustomTabBar(
+            self,
+            on_tab_select=self._on_tab_selected,
+            on_tab_close=self._on_tab_close_clicked,
+            on_new_tab=self.new_file
+        )
+        self.tabbar.pack(fill=tk.X, padx=5, pady=(5, 0))
 
         # Right-click menu for tabs
         self.tab_menu = tk.Menu(self, tearoff=0)
@@ -305,7 +492,13 @@ class NotepadReplica(tk.Tk):
         self.tab_menu.add_separator()
         self.tab_menu.add_command(label="Copy Path", command=self._copy_current_path)
 
-        self.notebook.bind('<Button-3>', self._show_tab_menu)
+    def _setup_editor_container(self):
+        """Set up the container for editors"""
+        self.editor_container = ttk.Frame(self)
+        self.editor_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Dictionary to track editor frames
+        self.editor_frames: Dict[str, ttk.Frame] = {}
 
     def _setup_statusbar(self):
         """Set up status bar"""
@@ -347,7 +540,7 @@ class NotepadReplica(tk.Tk):
 
     def _get_current_tab(self) -> Optional[Tab]:
         """Get the currently active tab"""
-        tab_id = self.notebook.select()
+        tab_id = self.tabbar.get_selected()
         return self.tabs.get(tab_id)
 
     def _get_current_editor(self) -> Optional[TextEditor]:
@@ -359,39 +552,32 @@ class NotepadReplica(tk.Tk):
         """Update tab title to reflect modified state"""
         tab = self.tabs.get(tab_id)
         if tab:
-            title = tab.filename
-            if tab.modified:
-                title = f"*{title}"
-            self.notebook.tab(tab_id, text=title)
+            self.tabbar.update_tab(tab_id, text=tab.filename, modified=tab.modified)
 
     def _update_status(self):
         """Update status bar"""
         self.tab_count_label.config(text=f"Tabs: {len(self.tabs)}")
 
-    def _on_tab_changed(self, event=None):
-        """Handle tab change event"""
-        tab = self._get_current_tab()
+    def _on_tab_selected(self, tab_id: str):
+        """Handle tab selection from custom tab bar"""
+        # Hide all editors
+        for frame in self.editor_frames.values():
+            frame.pack_forget()
+
+        # Show selected editor
+        if tab_id in self.editor_frames:
+            self.editor_frames[tab_id].pack(fill=tk.BOTH, expand=True)
+
+        # Update window title and encoding
+        tab = self.tabs.get(tab_id)
         if tab:
             self.title(f"{tab.filename} - Notepad++ Replica")
             self.encoding_var.set(tab.encoding.lower())
+            tab.editor.focus()
 
-    def _on_middle_click(self, event):
-        """Close tab on middle click"""
-        try:
-            index = self.notebook.index(f"@{event.x},{event.y}")
-            tab_id = self.notebook.tabs()[index]
-            self._close_tab(tab_id)
-        except:
-            pass
-
-    def _show_tab_menu(self, event):
-        """Show right-click menu for tabs"""
-        try:
-            index = self.notebook.index(f"@{event.x},{event.y}")
-            self.notebook.select(index)
-            self.tab_menu.tk_popup(event.x_root, event.y_root)
-        except:
-            pass
+    def _on_tab_close_clicked(self, tab_id: str):
+        """Handle close button click on tab"""
+        self._close_tab(tab_id)
 
     def _copy_current_path(self):
         """Copy current file path to clipboard"""
@@ -403,28 +589,47 @@ class NotepadReplica(tk.Tk):
 
     def _next_tab(self):
         """Switch to next tab"""
-        current = self.notebook.index(self.notebook.select())
-        total = len(self.notebook.tabs())
-        if total > 1:
-            self.notebook.select((current + 1) % total)
+        tab_ids = self.tabbar.get_all_tabs()
+        if len(tab_ids) > 1:
+            current_id = self.tabbar.get_selected()
+            if current_id in tab_ids:
+                current_idx = tab_ids.index(current_id)
+                next_idx = (current_idx + 1) % len(tab_ids)
+                self.tabbar.select(tab_ids[next_idx])
 
     def _prev_tab(self):
         """Switch to previous tab"""
-        current = self.notebook.index(self.notebook.select())
-        total = len(self.notebook.tabs())
-        if total > 1:
-            self.notebook.select((current - 1) % total)
+        tab_ids = self.tabbar.get_all_tabs()
+        if len(tab_ids) > 1:
+            current_id = self.tabbar.get_selected()
+            if current_id in tab_ids:
+                current_idx = tab_ids.index(current_id)
+                prev_idx = (current_idx - 1) % len(tab_ids)
+                self.tabbar.select(tab_ids[prev_idx])
+
+    def _get_all_tabs_for_search(self):
+        """Get all tabs for find/replace dialog"""
+        return [(tab_id, tab) for tab_id, tab in self.tabs.items()]
+
+    def _select_tab_by_id(self, tab_id: str):
+        """Select a tab by its ID"""
+        if tab_id in self.tabs:
+            self.tabbar.select(tab_id)
 
     # File operations
 
     def new_file(self):
         """Create a new empty tab"""
-        editor = TextEditor(self.notebook)
+        # Create editor frame in the container
+        editor_frame = ttk.Frame(self.editor_container)
+        editor = TextEditor(editor_frame)
+        editor.pack(fill=tk.BOTH, expand=True)
+
         filename = f"new {self.new_file_counter}"
         self.new_file_counter += 1
 
-        tab_id = self.notebook.add(editor, text=filename)
-        self.notebook.select(editor)
+        # Generate unique tab ID
+        tab_id = f"tab_{id(editor)}"
 
         tab = Tab(
             editor=editor,
@@ -433,20 +638,24 @@ class NotepadReplica(tk.Tk):
             is_new=True
         )
 
-        # Get the actual tab ID
-        actual_tab_id = str(editor)
-        self.tabs[actual_tab_id] = tab
+        self.tabs[tab_id] = tab
+        self.editor_frames[tab_id] = editor_frame
+
+        # Add to tab bar
+        self.tabbar.add_tab(tab_id, filename)
 
         # Set up modification callback
         def on_modified():
             tab.modified = True
-            self._update_tab_title(actual_tab_id)
+            self._update_tab_title(tab_id)
 
         editor.set_on_modified(on_modified)
-        editor.focus()
+
+        # Select the new tab
+        self.tabbar.select(tab_id)
 
         self._update_status()
-        return actual_tab_id
+        return tab_id
 
     def open_file(self, filepath: str = None):
         """Open a file"""
@@ -472,7 +681,7 @@ class NotepadReplica(tk.Tk):
         # Check if file is already open
         for tab_id, tab in self.tabs.items():
             if tab.filepath and os.path.normpath(tab.filepath) == os.path.normpath(filepath):
-                self.notebook.select(tab_id)
+                self.tabbar.select(tab_id)
                 return
 
         # Read file content
@@ -482,11 +691,12 @@ class NotepadReplica(tk.Tk):
             return
 
         # Create new tab
-        editor = TextEditor(self.notebook)
-        filename = os.path.basename(filepath)
+        editor_frame = ttk.Frame(self.editor_container)
+        editor = TextEditor(editor_frame)
+        editor.pack(fill=tk.BOTH, expand=True)
 
-        self.notebook.add(editor, text=filename)
-        self.notebook.select(editor)
+        filename = os.path.basename(filepath)
+        tab_id = f"tab_{id(editor)}"
 
         tab = Tab(
             editor=editor,
@@ -495,8 +705,11 @@ class NotepadReplica(tk.Tk):
             is_new=False
         )
 
-        actual_tab_id = str(editor)
-        self.tabs[actual_tab_id] = tab
+        self.tabs[tab_id] = tab
+        self.editor_frames[tab_id] = editor_frame
+
+        # Add to tab bar
+        self.tabbar.add_tab(tab_id, filename)
 
         # Set content
         editor.set_content(content or '')
@@ -504,10 +717,12 @@ class NotepadReplica(tk.Tk):
         # Set up modification callback
         def on_modified():
             tab.modified = True
-            self._update_tab_title(actual_tab_id)
+            self._update_tab_title(tab_id)
 
         editor.set_on_modified(on_modified)
-        editor.focus()
+
+        # Select the new tab
+        self.tabbar.select(tab_id)
 
         self._update_status()
         self.status_text.config(text=f"Opened: {filepath}")
@@ -620,13 +835,19 @@ class NotepadReplica(tk.Tk):
             if result is None:  # Cancel
                 return False
             elif result:  # Yes
-                self.notebook.select(tab_id)
+                self.tabbar.select(tab_id)
                 self.save_file()
                 if tab.modified:  # Save was cancelled
                     return False
 
-        # Remove tab
-        self.notebook.forget(tab_id)
+        # Remove from tab bar
+        self.tabbar.remove_tab(tab_id)
+
+        # Remove editor frame
+        if tab_id in self.editor_frames:
+            self.editor_frames[tab_id].destroy()
+            del self.editor_frames[tab_id]
+
         del self.tabs[tab_id]
 
         self._update_status()
@@ -639,13 +860,13 @@ class NotepadReplica(tk.Tk):
 
     def close_current_tab(self):
         """Close the current tab"""
-        tab_id = self.notebook.select()
+        tab_id = self.tabbar.get_selected()
         if tab_id:
             self._close_tab(tab_id)
 
     def close_other_tabs(self):
         """Close all tabs except current"""
-        current_id = self.notebook.select()
+        current_id = self.tabbar.get_selected()
         for tab_id in list(self.tabs.keys()):
             if tab_id != current_id:
                 if not self._close_tab(tab_id):
@@ -705,14 +926,21 @@ class NotepadReplica(tk.Tk):
         if len(self.tabs) == 1:
             tab = self._get_current_tab()
             if tab and tab.is_new and not tab.modified:
-                tab_id = self.notebook.select()
-                self.notebook.forget(tab_id)
-                del self.tabs[tab_id]
+                tab_id = self.tabbar.get_selected()
+                if tab_id:
+                    self.tabbar.remove_tab(tab_id)
+                    if tab_id in self.editor_frames:
+                        self.editor_frames[tab_id].destroy()
+                        del self.editor_frames[tab_id]
+                    del self.tabs[tab_id]
 
         # Create tabs for recovered files
         recovered = 0
+        first_tab_id = None
         for tab_info in session.tabs:
-            editor = TextEditor(self.notebook)
+            editor_frame = ttk.Frame(self.editor_container)
+            editor = TextEditor(editor_frame)
+            editor.pack(fill=tk.BOTH, expand=True)
 
             # Determine display name
             if tab_info.is_backup:
@@ -720,7 +948,7 @@ class NotepadReplica(tk.Tk):
             else:
                 display_name = tab_info.filename
 
-            self.notebook.add(editor, text=display_name)
+            tab_id = f"tab_{id(editor)}"
 
             tab = Tab(
                 editor=editor,
@@ -730,15 +958,20 @@ class NotepadReplica(tk.Tk):
                 encoding=tab_info.encoding
             )
 
-            actual_tab_id = str(editor)
-            self.tabs[actual_tab_id] = tab
+            self.tabs[tab_id] = tab
+            self.editor_frames[tab_id] = editor_frame
+
+            # Add to tab bar
+            self.tabbar.add_tab(tab_id, display_name, modified=tab_info.is_backup)
+
+            if first_tab_id is None:
+                first_tab_id = tab_id
 
             # Set content
             if tab_info.content:
                 editor.set_content(tab_info.content)
                 if tab_info.is_backup:
                     tab.modified = True
-                    self._update_tab_title(actual_tab_id)
             else:
                 editor.set_content(f"# Could not recover content for: {tab_info.filepath}")
 
@@ -746,7 +979,7 @@ class NotepadReplica(tk.Tk):
             editor.set_encoding(tab_info.encoding)
 
             # Set up modification callback
-            def on_modified(t=tab, tid=actual_tab_id):
+            def on_modified(t=tab, tid=tab_id):
                 t.modified = True
                 self._update_tab_title(tid)
 
@@ -754,9 +987,8 @@ class NotepadReplica(tk.Tk):
             recovered += 1
 
         # Select first recovered tab
-        if self.tabs:
-            first_tab = list(self.tabs.values())[0]
-            self.notebook.select(str(first_tab.editor))
+        if first_tab_id:
+            self.tabbar.select(first_tab_id)
 
         self._update_status()
         self.status_text.config(text=f"Recovered {recovered} tabs from Notepad++")
@@ -782,16 +1014,19 @@ class NotepadReplica(tk.Tk):
                 return
 
         # Get all backup files
-        tabs = get_all_backup_files(backup_dir)
+        backup_tabs = get_all_backup_files(backup_dir)
 
-        if not tabs:
+        if not backup_tabs:
             messagebox.showinfo("Backups", "No backup files found.")
             return
 
         # Create tabs for backup files
-        for tab_info in tabs:
-            editor = TextEditor(self.notebook)
-            self.notebook.add(editor, text=tab_info.filename)
+        for tab_info in backup_tabs:
+            editor_frame = ttk.Frame(self.editor_container)
+            editor = TextEditor(editor_frame)
+            editor.pack(fill=tk.BOTH, expand=True)
+
+            tab_id = f"tab_{id(editor)}"
 
             tab = Tab(
                 editor=editor,
@@ -800,20 +1035,23 @@ class NotepadReplica(tk.Tk):
                 is_new=True
             )
 
-            actual_tab_id = str(editor)
-            self.tabs[actual_tab_id] = tab
+            self.tabs[tab_id] = tab
+            self.editor_frames[tab_id] = editor_frame
+
+            # Add to tab bar
+            self.tabbar.add_tab(tab_id, tab_info.filename)
 
             if tab_info.content:
                 editor.set_content(tab_info.content)
 
-            def on_modified(t=tab, tid=actual_tab_id):
+            def on_modified(t=tab, tid=tab_id):
                 t.modified = True
                 self._update_tab_title(tid)
 
             editor.set_on_modified(on_modified)
 
         self._update_status()
-        self.status_text.config(text=f"Loaded {len(tabs)} backup files")
+        self.status_text.config(text=f"Loaded {len(backup_tabs)} backup files")
 
     # Edit operations
 
@@ -888,7 +1126,11 @@ class NotepadReplica(tk.Tk):
         if editor:
             if self.current_find_dialog:
                 self.current_find_dialog.destroy()
-            self.current_find_dialog = FindReplaceDialog(self, editor)
+            self.current_find_dialog = FindReplaceDialog(
+                self, editor,
+                get_all_tabs_func=self._get_all_tabs_for_search,
+                select_tab_func=self._select_tab_by_id
+            )
 
     def goto_line(self):
         """Go to specific line"""
@@ -977,20 +1219,145 @@ Navigation:
 """
         messagebox.showinfo("Keyboard Shortcuts", shortcuts)
 
+    def _save_current_session(self):
+        """Save the current session state"""
+        tabs_data = []
+        for tab_id in self.tabbar.get_all_tabs():
+            tab = self.tabs.get(tab_id)
+            if tab:
+                cursor_pos = tab.editor.text.index(tk.INSERT)
+                first_visible = tab.editor.text.index("@0,0")
+                tabs_data.append({
+                    'filename': tab.filename,
+                    'filepath': tab.filepath,
+                    'content': tab.editor.get_content(),
+                    'cursor_pos': cursor_pos,
+                    'first_visible': first_visible,
+                    'is_new': tab.is_new,
+                    'modified': tab.modified,
+                    'encoding': tab.encoding
+                })
+
+        active_index = 0
+        current_id = self.tabbar.get_selected()
+        if current_id:
+            tab_ids = self.tabbar.get_all_tabs()
+            if current_id in tab_ids:
+                active_index = tab_ids.index(current_id)
+
+        save_session(
+            tabs_data,
+            active_index,
+            self.new_file_counter,
+            self.geometry(),
+            self.word_wrap_enabled
+        )
+
+    def _restore_session(self) -> bool:
+        """Restore the previous session"""
+        session_data = load_session()
+        if not session_data or not session_data.get('tabs'):
+            return False
+
+        # Restore window geometry
+        geometry = session_data.get('window_geometry')
+        if geometry:
+            try:
+                self.geometry(geometry)
+            except:
+                pass
+
+        # Restore word wrap state
+        self.word_wrap_enabled = session_data.get('word_wrap_enabled', False)
+        self.word_wrap_var.set(self.word_wrap_enabled)
+
+        # Restore new file counter
+        self.new_file_counter = session_data.get('new_file_counter', 1)
+
+        # Restore tabs
+        first_tab_id = None
+        active_index = session_data.get('active_tab_index', 0)
+        restored_tab_ids = []
+
+        for tab_data in session_data.get('tabs', []):
+            editor_frame = ttk.Frame(self.editor_container)
+            editor = TextEditor(editor_frame)
+            editor.pack(fill=tk.BOTH, expand=True)
+
+            tab_id = f"tab_{id(editor)}"
+            filename = tab_data.get('filename', 'untitled')
+
+            tab = Tab(
+                editor=editor,
+                filepath=tab_data.get('filepath'),
+                filename=filename,
+                is_new=tab_data.get('is_new', True),
+                modified=tab_data.get('modified', False),
+                encoding=tab_data.get('encoding', 'utf-8')
+            )
+
+            self.tabs[tab_id] = tab
+            self.editor_frames[tab_id] = editor_frame
+            restored_tab_ids.append(tab_id)
+
+            # Add to tab bar
+            self.tabbar.add_tab(tab_id, filename, modified=tab.modified)
+
+            if first_tab_id is None:
+                first_tab_id = tab_id
+
+            # Set content
+            content = tab_data.get('content', '')
+            editor.set_content(content)
+
+            # Restore cursor position
+            cursor_line = tab_data.get('cursor_line', 1)
+            cursor_col = tab_data.get('cursor_col', 0)
+            try:
+                editor.text.mark_set(tk.INSERT, f"{cursor_line}.{cursor_col}")
+            except:
+                pass
+
+            # Restore first visible line
+            first_visible = tab_data.get('first_visible_line', 1)
+            try:
+                editor.text.yview(f"{first_visible}.0")
+            except:
+                pass
+
+            # Set encoding
+            editor.set_encoding(tab.encoding)
+
+            # Apply word wrap if enabled
+            if self.word_wrap_enabled:
+                editor.set_word_wrap(True)
+
+            # Mark as modified if it was modified
+            if tab.modified:
+                editor.modified = True
+
+            # Set up modification callback
+            def on_modified(t=tab, tid=tab_id):
+                t.modified = True
+                self._update_tab_title(tid)
+
+            editor.set_on_modified(on_modified)
+
+        # Select the active tab
+        if restored_tab_ids:
+            if 0 <= active_index < len(restored_tab_ids):
+                self.tabbar.select(restored_tab_ids[active_index])
+            elif first_tab_id:
+                self.tabbar.select(first_tab_id)
+
+        self._update_status()
+        self.status_text.config(text=f"Restored {len(restored_tab_ids)} tabs from previous session")
+        return len(restored_tab_ids) > 0
+
     def quit_app(self):
         """Quit application"""
-        # Check for unsaved changes
-        for tab in self.tabs.values():
-            if tab.modified:
-                result = messagebox.askyesnocancel(
-                    "Unsaved Changes",
-                    "You have unsaved changes. Save before exit?"
-                )
-                if result is None:  # Cancel
-                    return
-                elif result:  # Yes
-                    self.save_all()
-                break
+        # Always save session before quitting (like Notepad++)
+        self._save_current_session()
 
         self.destroy()
 
