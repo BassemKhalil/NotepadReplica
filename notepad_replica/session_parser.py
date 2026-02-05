@@ -5,8 +5,8 @@ Parses Notepad++ session.xml files and recovers backup files to restore
 open tabs and their content.
 
 Notepad++ stores session data in:
-- %APPDATA%\Notepad++\session.xml - list of open files
-- %APPDATA%\Notepad++\backup\ - unsaved file backups
+- %APPDATA%\\Notepad++\\session.xml - list of open files
+- %APPDATA%\\Notepad++\\backup\\ - unsaved file backups
 """
 
 import os
