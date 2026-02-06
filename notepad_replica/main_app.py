@@ -1751,20 +1751,26 @@ Navigation:
 
     def quit_app(self):
         """Quit application"""
-        # Save session - don't let errors prevent closing
-        try:
-            self._save_current_session()
-        except Exception:
-            pass
+        # Save session in a thread so it doesn't block the close
+        import threading
 
-        # Force immediate exit
-        try:
-            self.destroy()
-        except Exception:
-            pass
+        def save_and_exit():
+            try:
+                self._save_current_session()
+            except Exception:
+                pass
+            # Force immediate termination - os._exit bypasses all Python cleanup
+            os._exit(0)
 
-        # Use sys.exit to ensure immediate termination
-        sys.exit(0)
+        # Start save in background and exit immediately after a short delay
+        save_thread = threading.Thread(target=save_and_exit, daemon=True)
+        save_thread.start()
+
+        # Hide window immediately for perceived faster close
+        self.withdraw()
+
+        # Give the save thread a moment, then force exit
+        self.after(100, lambda: os._exit(0))
 
 
 def main():
