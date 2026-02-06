@@ -202,8 +202,16 @@ class CustomTitleBar(tk.Frame):
             self._drag_start_y = 16
 
     def _minimize(self, event=None):
-        """Minimize window"""
-        self.parent.iconify()
+        """Minimize window - use Windows API for overrideredirect windows"""
+        try:
+            import ctypes
+            # Get the window handle
+            hwnd = ctypes.windll.user32.GetParent(self.parent.winfo_id())
+            # SW_MINIMIZE = 6
+            ctypes.windll.user32.ShowWindow(hwnd, 6)
+        except Exception:
+            # Fallback for non-Windows
+            self.parent.iconify()
 
     def _toggle_maximize(self, event=None):
         """Toggle maximize/restore"""
