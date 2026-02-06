@@ -81,11 +81,11 @@ class TextEditor(ttk.Frame):
         text_frame = ttk.Frame(self.editor_frame)
         text_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Scrollbars
-        self.v_scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL)
+        # Scrollbars (using tk.Scrollbar for full theme control)
+        self.v_scrollbar = tk.Scrollbar(text_frame, orient=tk.VERTICAL, bg='#e0e0e0', troughcolor='#f0f0f0')
         self.v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.h_scrollbar = ttk.Scrollbar(text_frame, orient=tk.HORIZONTAL)
+        self.h_scrollbar = tk.Scrollbar(text_frame, orient=tk.HORIZONTAL, bg='#e0e0e0', troughcolor='#f0f0f0')
         self.h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Text widget

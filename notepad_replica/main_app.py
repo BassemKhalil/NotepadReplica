@@ -374,13 +374,27 @@ class FeatherPad(tk.Tk):
         style.configure('TNotebook.Tab', padding=[10, 5])
 
     def _setup_menu(self):
-        """Set up menu bar"""
-        self.menubar = tk.Menu(self)
-        self.config(menu=self.menubar)
+        """Set up custom menu bar using frame and menubuttons for full theme control"""
+        # Custom menu bar frame
+        self.menubar = tk.Frame(self, bg='#f0f0f0', pady=1)
+        self.menubar.pack(side=tk.TOP, fill=tk.X)
+
+        # Store menu buttons for theming
+        self.menu_buttons = []
+        self.menus = {}
+
+        # Menu button style
+        mb_config = {'bg': '#f0f0f0', 'fg': '#000000', 'relief': 'flat',
+                     'activebackground': '#0078d7', 'activeforeground': '#ffffff',
+                     'padx': 8, 'pady': 2, 'bd': 0, 'highlightthickness': 0}
 
         # File menu
-        file_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="File", menu=file_menu)
+        file_mb = tk.Menubutton(self.menubar, text="File", **mb_config)
+        file_mb.pack(side=tk.LEFT)
+        self.menu_buttons.append(file_mb)
+        file_menu = tk.Menu(file_mb, tearoff=0)
+        file_mb.config(menu=file_menu)
+        self.menus['File'] = file_menu
         file_menu.add_command(label="New", command=self.new_file, accelerator="Ctrl+N")
         file_menu.add_command(label="Open...", command=self.open_file, accelerator="Ctrl+O")
         file_menu.add_command(label="Open Folder...", command=self.open_folder)
@@ -398,8 +412,12 @@ class FeatherPad(tk.Tk):
         file_menu.add_command(label="Exit", command=self.quit_app, accelerator="Alt+F4")
 
         # Edit menu
-        edit_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Edit", menu=edit_menu)
+        edit_mb = tk.Menubutton(self.menubar, text="Edit", **mb_config)
+        edit_mb.pack(side=tk.LEFT)
+        self.menu_buttons.append(edit_mb)
+        edit_menu = tk.Menu(edit_mb, tearoff=0)
+        edit_mb.config(menu=edit_menu)
+        self.menus['Edit'] = edit_menu
         edit_menu.add_command(label="Undo", command=self.undo, accelerator="Ctrl+Z")
         edit_menu.add_command(label="Redo", command=self.redo, accelerator="Ctrl+Y")
         edit_menu.add_separator()
@@ -414,16 +432,24 @@ class FeatherPad(tk.Tk):
         edit_menu.add_command(label="Delete Line", command=self.delete_line, accelerator="Ctrl+L")
 
         # Search menu
-        search_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Search", menu=search_menu)
+        search_mb = tk.Menubutton(self.menubar, text="Search", **mb_config)
+        search_mb.pack(side=tk.LEFT)
+        self.menu_buttons.append(search_mb)
+        search_menu = tk.Menu(search_mb, tearoff=0)
+        search_mb.config(menu=search_menu)
+        self.menus['Search'] = search_menu
         search_menu.add_command(label="Find...", command=self.show_find_dialog, accelerator="Ctrl+F")
         search_menu.add_command(label="Find & Replace...", command=self.show_find_dialog, accelerator="Ctrl+H")
         search_menu.add_separator()
         search_menu.add_command(label="Go to Line...", command=self.goto_line, accelerator="Ctrl+G")
 
         # View menu
-        view_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="View", menu=view_menu)
+        view_mb = tk.Menubutton(self.menubar, text="View", **mb_config)
+        view_mb.pack(side=tk.LEFT)
+        self.menu_buttons.append(view_mb)
+        view_menu = tk.Menu(view_mb, tearoff=0)
+        view_mb.config(menu=view_menu)
+        self.menus['View'] = view_menu
 
         self.word_wrap_var = tk.BooleanVar(value=False)
         view_menu.add_checkbutton(label="Word Wrap", variable=self.word_wrap_var,
@@ -435,8 +461,12 @@ class FeatherPad(tk.Tk):
         view_menu.add_command(label="Reset Zoom", command=lambda: self.zoom(0), accelerator="Ctrl+0")
 
         # Encoding menu
-        encoding_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Encoding", menu=encoding_menu)
+        encoding_mb = tk.Menubutton(self.menubar, text="Encoding", **mb_config)
+        encoding_mb.pack(side=tk.LEFT)
+        self.menu_buttons.append(encoding_mb)
+        encoding_menu = tk.Menu(encoding_mb, tearoff=0)
+        encoding_mb.config(menu=encoding_menu)
+        self.menus['Encoding'] = encoding_menu
 
         self.encoding_var = tk.StringVar(value='utf-8')
         for enc in ['UTF-8', 'UTF-8 BOM', 'UTF-16', 'ANSI (Windows-1252)', 'ISO-8859-1']:
@@ -444,8 +474,12 @@ class FeatherPad(tk.Tk):
                                            value=enc.lower().replace(' ', '-').replace('(', '').replace(')', ''))
 
         # Theme menu
-        theme_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Theme", menu=theme_menu)
+        theme_mb = tk.Menubutton(self.menubar, text="Theme", **mb_config)
+        theme_mb.pack(side=tk.LEFT)
+        self.menu_buttons.append(theme_mb)
+        theme_menu = tk.Menu(theme_mb, tearoff=0)
+        theme_mb.config(menu=theme_menu)
+        self.menus['Theme'] = theme_menu
 
         self.theme_var = tk.StringVar(value='light')
         theme_menu.add_radiobutton(label="Light Mode", variable=self.theme_var,
@@ -454,8 +488,12 @@ class FeatherPad(tk.Tk):
                                     value='dark', command=self._apply_theme)
 
         # Help menu
-        help_menu = tk.Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Help", menu=help_menu)
+        help_mb = tk.Menubutton(self.menubar, text="Help", **mb_config)
+        help_mb.pack(side=tk.LEFT)
+        self.menu_buttons.append(help_mb)
+        help_menu = tk.Menu(help_mb, tearoff=0)
+        help_mb.config(menu=help_menu)
+        self.menus['Help'] = help_menu
         help_menu.add_command(label="About", command=self.show_about)
         help_menu.add_command(label="Keyboard Shortcuts", command=self.show_shortcuts)
 
@@ -1307,24 +1345,44 @@ class FeatherPad(tk.Tk):
             # Store theme colors for line numbers redraw
             tab.editor.line_numbers.fg_color = line_num_fg
             tab.editor.line_numbers.redraw()
+            # Apply scrollbar theming
+            tab.editor.v_scrollbar.configure(
+                bg=scrollbar_fg,
+                troughcolor=scrollbar_bg,
+                activebackground='#6b7280' if theme == 'dark' else '#a0a0a0',
+                highlightbackground=main_bg
+            )
+            tab.editor.h_scrollbar.configure(
+                bg=scrollbar_fg,
+                troughcolor=scrollbar_bg,
+                activebackground='#6b7280' if theme == 'dark' else '#a0a0a0',
+                highlightbackground=main_bg
+            )
 
         # Apply to main window
         self.configure(bg=main_bg)
 
-        # Apply to menu bar
-        self.menubar.configure(bg=menu_bg, fg=menu_fg,
-                               activebackground=select_bg,
-                               activeforeground=select_fg)
-        # Style all submenus
-        for menu_name in ['File', 'Edit', 'Search', 'View', 'Encoding', 'Theme', 'Help']:
-            try:
-                menu_index = self.menubar.index(menu_name)
-                submenu = self.menubar.nametowidget(self.menubar.entrycget(menu_index, 'menu'))
-                submenu.configure(bg=menu_bg, fg=menu_fg,
-                                 activebackground=select_bg,
-                                 activeforeground=select_fg)
-            except:
-                pass
+        # Apply to menu bar frame
+        self.menubar.configure(bg=menu_bg)
+
+        # Apply to menu buttons
+        for mb in self.menu_buttons:
+            mb.configure(
+                bg=menu_bg,
+                fg=menu_fg,
+                activebackground=select_bg,
+                activeforeground=select_fg,
+                highlightbackground=menu_bg
+            )
+
+        # Style all dropdown menus
+        for menu in self.menus.values():
+            menu.configure(
+                bg=menu_bg,
+                fg=menu_fg,
+                activebackground=select_bg,
+                activeforeground=select_fg
+            )
 
         # Apply to status bar
         self.statusbar.configure(bg=status_bg)
