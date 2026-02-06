@@ -26,6 +26,9 @@ THEMES = {
         'close_btn_bg': '#d9d9d9',
         'close_btn_hover_bg': '#ffcccc',
         'close_btn_hover_fg': '#990000',
+        'arrow_btn_bg': '#d0d0d0',
+        'arrow_btn_fg': '#333333',
+        'arrow_btn_active_bg': '#b0b0b0',
     },
     'dark': {
         'tab_bar_bg': '#1a1a1a',        # Very dark background
@@ -37,6 +40,9 @@ THEMES = {
         'close_btn_bg': '#2d2d2d',
         'close_btn_hover_bg': '#3f1f1f',
         'close_btn_hover_fg': '#ff6b6b',
+        'arrow_btn_bg': '#2d2d2d',      # Arrow button background
+        'arrow_btn_fg': '#9ca3af',      # Arrow button text
+        'arrow_btn_active_bg': '#404040', # Arrow button hover
     }
 }
 
@@ -78,6 +84,22 @@ class CustomTabBar(ttk.Frame):
 
     def _apply_theme(self):
         """Apply the current theme to all UI elements"""
+        # Update navigation frame
+        self.nav_frame.configure(bg=self.colors['tab_bar_bg'])
+
+        # Update arrow buttons
+        for btn in self.arrow_buttons:
+            btn.configure(
+                bg=self.colors['arrow_btn_bg'],
+                fg=self.colors['arrow_btn_fg'],
+                activebackground=self.colors['arrow_btn_active_bg'],
+                activeforeground=self.colors['arrow_btn_fg'],
+                highlightbackground=self.colors['tab_bar_bg']
+            )
+
+        # Update separator
+        self.separator.configure(bg=self.colors['tab_bar_bg'])
+
         # Update canvas and spacer background
         self.canvas.configure(bg=self.colors['tab_bar_bg'])
         self.spacer_frame.configure(bg=self.colors['tab_bar_bg'])
@@ -88,29 +110,40 @@ class CustomTabBar(ttk.Frame):
 
     def _setup_ui(self):
         """Set up the tab bar UI"""
-        # Configure style
-        style = ttk.Style()
-
-        # Navigation frame (left side with arrows)
-        self.nav_frame = ttk.Frame(self)
+        # Navigation frame (left side with arrows) - use tk.Frame for full theme control
+        self.nav_frame = tk.Frame(self, bg=self.colors['tab_bar_bg'])
         self.nav_frame.pack(side=tk.LEFT, fill=tk.Y)
 
-        # Navigation buttons
-        btn_style = {'width': 2, 'padding': 1}
+        # Navigation buttons - use tk.Button for full theme control
+        btn_style = {
+            'width': 2,
+            'relief': 'flat',
+            'bd': 1,
+            'bg': self.colors['arrow_btn_bg'],
+            'fg': self.colors['arrow_btn_fg'],
+            'activebackground': self.colors['arrow_btn_active_bg'],
+            'activeforeground': self.colors['arrow_btn_fg'],
+            'highlightthickness': 0
+        }
 
-        self.btn_first = ttk.Button(self.nav_frame, text="|<", command=self._go_first, **btn_style)
-        self.btn_first.pack(side=tk.LEFT, padx=1)
+        self.btn_first = tk.Button(self.nav_frame, text="|<", command=self._go_first, **btn_style)
+        self.btn_first.pack(side=tk.LEFT, padx=1, pady=2)
 
-        self.btn_prev = ttk.Button(self.nav_frame, text="<", command=self._go_prev, **btn_style)
-        self.btn_prev.pack(side=tk.LEFT, padx=1)
+        self.btn_prev = tk.Button(self.nav_frame, text="<", command=self._go_prev, **btn_style)
+        self.btn_prev.pack(side=tk.LEFT, padx=1, pady=2)
 
-        self.btn_next = ttk.Button(self.nav_frame, text=">", command=self._go_next, **btn_style)
-        self.btn_next.pack(side=tk.LEFT, padx=1)
+        self.btn_next = tk.Button(self.nav_frame, text=">", command=self._go_next, **btn_style)
+        self.btn_next.pack(side=tk.LEFT, padx=1, pady=2)
 
-        self.btn_last = ttk.Button(self.nav_frame, text=">|", command=self._go_last, **btn_style)
-        self.btn_last.pack(side=tk.LEFT, padx=1)
+        self.btn_last = tk.Button(self.nav_frame, text=">|", command=self._go_last, **btn_style)
+        self.btn_last.pack(side=tk.LEFT, padx=1, pady=2)
 
-        ttk.Separator(self.nav_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=3)
+        # Store arrow buttons for theming
+        self.arrow_buttons = [self.btn_first, self.btn_prev, self.btn_next, self.btn_last]
+
+        # Separator
+        self.separator = tk.Frame(self.nav_frame, width=2, bg=self.colors['tab_bar_bg'])
+        self.separator.pack(side=tk.LEFT, fill=tk.Y, padx=3)
 
         # Tab container (scrollable area)
         self.tab_container = ttk.Frame(self)

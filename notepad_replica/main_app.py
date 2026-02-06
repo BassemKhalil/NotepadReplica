@@ -432,25 +432,25 @@ class FeatherPad(tk.Tk):
         self.resize_grip.bind('<Button-1>', self._start_resize)
         self.resize_grip.bind('<B1-Motion>', self._on_resize)
 
-        # Edge resize areas (thin frames at edges)
+        # Edge resize areas (thin frames at edges) - transparent/matching window bg
         self._resize_edges = {}
 
-        # Right edge
-        right_edge = tk.Frame(self, width=5, cursor='size_we', bg='')
+        # Right edge - use a very thin invisible frame
+        right_edge = tk.Frame(self, width=3, cursor='size_we')
         right_edge.place(relx=1.0, y=32, relheight=1.0, height=-48, anchor='ne')
         right_edge.bind('<Button-1>', lambda e: self._start_edge_resize(e, 'right'))
         right_edge.bind('<B1-Motion>', lambda e: self._on_edge_resize(e, 'right'))
         self._resize_edges['right'] = right_edge
 
         # Bottom edge
-        bottom_edge = tk.Frame(self, height=5, cursor='size_ns', bg='')
+        bottom_edge = tk.Frame(self, height=3, cursor='size_ns')
         bottom_edge.place(x=0, rely=1.0, relwidth=1.0, width=-16, anchor='sw')
         bottom_edge.bind('<Button-1>', lambda e: self._start_edge_resize(e, 'bottom'))
         bottom_edge.bind('<B1-Motion>', lambda e: self._on_edge_resize(e, 'bottom'))
         self._resize_edges['bottom'] = bottom_edge
 
         # Left edge
-        left_edge = tk.Frame(self, width=5, cursor='size_we', bg='')
+        left_edge = tk.Frame(self, width=3, cursor='size_we')
         left_edge.place(x=0, y=32, relheight=1.0, height=-48, anchor='nw')
         left_edge.bind('<Button-1>', lambda e: self._start_edge_resize(e, 'left'))
         left_edge.bind('<B1-Motion>', lambda e: self._on_edge_resize(e, 'left'))
@@ -1480,13 +1480,17 @@ class FeatherPad(tk.Tk):
                 bg=scrollbar_fg,
                 troughcolor=scrollbar_bg,
                 activebackground='#6b7280' if theme == 'dark' else '#a0a0a0',
-                highlightbackground=main_bg
+                highlightbackground=scrollbar_bg,
+                highlightthickness=0,
+                bd=0
             )
             tab.editor.h_scrollbar.configure(
                 bg=scrollbar_fg,
                 troughcolor=scrollbar_bg,
                 activebackground='#6b7280' if theme == 'dark' else '#a0a0a0',
-                highlightbackground=main_bg
+                highlightbackground=scrollbar_bg,
+                highlightthickness=0,
+                bd=0
             )
 
         # Apply to main window
@@ -1519,14 +1523,19 @@ class FeatherPad(tk.Tk):
         self.status_text.configure(bg=status_bg, fg=editor_fg)
         self.tab_count_label.configure(bg=status_bg, fg=editor_fg)
 
-        # Apply to toolbar
+        # Apply to toolbar - use grey hover colors instead of blue
         self.toolbar.configure(bg=toolbar_bg)
+        if theme == 'dark':
+            btn_active_bg = '#4b5563'  # Grey hover for dark mode
+        else:
+            btn_active_bg = '#c0c0c0'  # Grey hover for light mode
+
         for btn in self.toolbar_buttons:
             btn.configure(
                 bg=button_bg,
                 fg=button_fg,
-                activebackground=select_bg,
-                activeforeground=select_fg,
+                activebackground=btn_active_bg,
+                activeforeground=button_fg,
                 highlightbackground=toolbar_bg
             )
         # Update toolbar separators
@@ -1539,9 +1548,11 @@ class FeatherPad(tk.Tk):
         # Apply to custom title bar
         self.titlebar.set_theme(theme)
 
-        # Apply to resize grip
-        grip_color = '#262626' if theme == 'dark' else '#e0e0e0'
+        # Apply to resize grip and edges
+        grip_color = '#1a1a1a' if theme == 'dark' else '#e0e0e0'
         self.resize_grip.configure(bg=grip_color)
+        for edge in self._resize_edges.values():
+            edge.configure(bg=main_bg)
 
     # Help
 
@@ -1740,10 +1751,20 @@ Navigation:
 
     def quit_app(self):
         """Quit application"""
-        # Always save session before quitting (like Notepad++)
-        self._save_current_session()
+        # Save session - don't let errors prevent closing
+        try:
+            self._save_current_session()
+        except Exception:
+            pass
 
-        self.destroy()
+        # Force immediate exit
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+        # Use sys.exit to ensure immediate termination
+        sys.exit(0)
 
 
 def main():
