@@ -18,6 +18,7 @@ from .session_parser import (
 )
 from .session_manager import save_session, load_session, cleanup_old_backups
 from .custom_tabbar import CustomTabBar
+from .custom_titlebar import CustomTitleBar
 
 
 @dataclass
@@ -333,8 +334,23 @@ class FeatherPad(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("FeatherPad")
+        # Remove system title bar for custom theming
+        self.overrideredirect(True)
+
+        # Store window title for updates
+        self._window_title = "FeatherPad"
         self.geometry("1200x800")
+
+        # Center window on screen
+        self.update_idletasks()
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        x = (screen_w - 1200) // 2
+        y = (screen_h - 800) // 2
+        self.geometry(f"1200x800+{x}+{y}")
+
+        # Make window appear in taskbar (Windows-specific workaround)
+        self.after(10, self._setup_taskbar_icon)
 
         # Application state
         self.tabs: Dict[str, Tab] = {}  # tab_id -> Tab
@@ -344,12 +360,14 @@ class FeatherPad(tk.Tk):
 
         # Set up UI
         self._setup_styles()
+        self._setup_titlebar()  # Custom title bar first
         self._setup_menu()
         self._setup_toolbar()
         self._setup_tabbar()
         self._setup_editor_container()
         self._setup_statusbar()
         self._setup_bindings()
+        self._setup_resize_grip()  # Add resize capability
 
         # Set app icon (if available)
         try:
@@ -372,6 +390,116 @@ class FeatherPad(tk.Tk):
 
         # Tab style
         style.configure('TNotebook.Tab', padding=[10, 5])
+
+    def _setup_taskbar_icon(self):
+        """Make the window appear in the taskbar (Windows-specific)"""
+        try:
+            import ctypes
+
+            # Get window handle
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+
+            # Set window style to appear in taskbar
+            GWL_EXSTYLE = -20
+            WS_EX_APPWINDOW = 0x00040000
+            WS_EX_TOOLWINDOW = 0x00000080
+
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            style = style & ~WS_EX_TOOLWINDOW
+            style = style | WS_EX_APPWINDOW
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+
+            # Force window to refresh
+            self.withdraw()
+            self.after(10, self.deiconify)
+        except Exception:
+            # Not on Windows or error, ignore
+            pass
+
+    def _setup_titlebar(self):
+        """Set up custom title bar"""
+        self.titlebar = CustomTitleBar(self, title=self._window_title, theme='light')
+        self.titlebar.pack(side=tk.TOP, fill=tk.X)
+        self.titlebar.pack_border()
+
+    def _setup_resize_grip(self):
+        """Set up window resize grips"""
+        # Resize grip at bottom-right corner
+        self.resize_grip = tk.Frame(self, width=16, height=16, cursor='size_nw_se', bg='#e0e0e0')
+        self.resize_grip.place(relx=1.0, rely=1.0, anchor='se')
+
+        # Bind resize events
+        self.resize_grip.bind('<Button-1>', self._start_resize)
+        self.resize_grip.bind('<B1-Motion>', self._on_resize)
+
+        # Edge resize areas (thin frames at edges)
+        self._resize_edges = {}
+
+        # Right edge
+        right_edge = tk.Frame(self, width=5, cursor='size_we', bg='')
+        right_edge.place(relx=1.0, y=32, relheight=1.0, height=-48, anchor='ne')
+        right_edge.bind('<Button-1>', lambda e: self._start_edge_resize(e, 'right'))
+        right_edge.bind('<B1-Motion>', lambda e: self._on_edge_resize(e, 'right'))
+        self._resize_edges['right'] = right_edge
+
+        # Bottom edge
+        bottom_edge = tk.Frame(self, height=5, cursor='size_ns', bg='')
+        bottom_edge.place(x=0, rely=1.0, relwidth=1.0, width=-16, anchor='sw')
+        bottom_edge.bind('<Button-1>', lambda e: self._start_edge_resize(e, 'bottom'))
+        bottom_edge.bind('<B1-Motion>', lambda e: self._on_edge_resize(e, 'bottom'))
+        self._resize_edges['bottom'] = bottom_edge
+
+        # Left edge
+        left_edge = tk.Frame(self, width=5, cursor='size_we', bg='')
+        left_edge.place(x=0, y=32, relheight=1.0, height=-48, anchor='nw')
+        left_edge.bind('<Button-1>', lambda e: self._start_edge_resize(e, 'left'))
+        left_edge.bind('<B1-Motion>', lambda e: self._on_edge_resize(e, 'left'))
+        self._resize_edges['left'] = left_edge
+
+        # Store resize start position
+        self._resize_start = {'x': 0, 'y': 0, 'w': 0, 'h': 0, 'win_x': 0, 'win_y': 0}
+
+    def _start_resize(self, event):
+        """Start window resize from corner"""
+        self._resize_start['x'] = event.x_root
+        self._resize_start['y'] = event.y_root
+        self._resize_start['w'] = self.winfo_width()
+        self._resize_start['h'] = self.winfo_height()
+
+    def _on_resize(self, event):
+        """Handle window resize from corner"""
+        dx = event.x_root - self._resize_start['x']
+        dy = event.y_root - self._resize_start['y']
+
+        new_w = max(400, self._resize_start['w'] + dx)
+        new_h = max(300, self._resize_start['h'] + dy)
+
+        self.geometry(f'{new_w}x{new_h}')
+
+    def _start_edge_resize(self, event, edge):
+        """Start edge resize"""
+        self._resize_start['x'] = event.x_root
+        self._resize_start['y'] = event.y_root
+        self._resize_start['w'] = self.winfo_width()
+        self._resize_start['h'] = self.winfo_height()
+        self._resize_start['win_x'] = self.winfo_x()
+        self._resize_start['win_y'] = self.winfo_y()
+
+    def _on_edge_resize(self, event, edge):
+        """Handle edge resize"""
+        dx = event.x_root - self._resize_start['x']
+        dy = event.y_root - self._resize_start['y']
+
+        if edge == 'right':
+            new_w = max(400, self._resize_start['w'] + dx)
+            self.geometry(f"{new_w}x{self.winfo_height()}")
+        elif edge == 'bottom':
+            new_h = max(300, self._resize_start['h'] + dy)
+            self.geometry(f"{self.winfo_width()}x{new_h}")
+        elif edge == 'left':
+            new_w = max(400, self._resize_start['w'] - dx)
+            new_x = self._resize_start['win_x'] + (self._resize_start['w'] - new_w)
+            self.geometry(f"{new_w}x{self.winfo_height()}+{new_x}+{self.winfo_y()}")
 
     def _setup_menu(self):
         """Set up custom menu bar using frame and menubuttons for full theme control"""
@@ -642,7 +770,9 @@ class FeatherPad(tk.Tk):
         # Update window title and encoding
         tab = self.tabs.get(tab_id)
         if tab:
-            self.title(f"{tab.filename} - FeatherPad")
+            title = f"{tab.filename} - FeatherPad"
+            self._window_title = title
+            self.titlebar.set_title(title)
             self.encoding_var.set(tab.encoding.lower())
             tab.editor.focus()
 
@@ -1405,6 +1535,13 @@ class FeatherPad(tk.Tk):
                 # This is a separator frame
                 if child.winfo_width() <= 5:  # separator is thin
                     child.configure(bg=border_color)
+
+        # Apply to custom title bar
+        self.titlebar.set_theme(theme)
+
+        # Apply to resize grip
+        grip_color = '#262626' if theme == 'dark' else '#e0e0e0'
+        self.resize_grip.configure(bg=grip_color)
 
     # Help
 
